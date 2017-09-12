@@ -19,6 +19,7 @@ import android.os.Looper;
 import android.os.Message;
 
 import com.vise.baseble.callback.IConnectCallback;
+import com.vise.baseble.callback.MyScanCallback;
 import com.vise.baseble.callback.data.IBleCallback;
 import com.vise.baseble.callback.data.ICharacteristicCallback;
 import com.vise.baseble.callback.data.IDescriptorCallback;
@@ -38,6 +39,7 @@ import com.vise.baseble.model.BluetoothLeDevice;
 import com.vise.baseble.utils.HexUtil;
 import com.vise.log.ViseLog;
 
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -388,7 +390,8 @@ public class ViseBluetooth {
         if (this.context == null) {
             this.context = context.getApplicationContext();
             bluetoothManager = (BluetoothManager) this.context.getSystemService(Context.BLUETOOTH_SERVICE);
-            bluetoothAdapter = bluetoothManager.getAdapter();
+//            bluetoothAdapter = bluetoothManager.getAdapter();
+            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();;
         }
     }
 
@@ -488,6 +491,13 @@ public class ViseBluetooth {
         periodScanCallback.setViseBluetooth(this).setScan(true).setScanTimeout(scanTimeout).scan();
     }
 
+    public void startMyScan(MyScanCallback myScanCallback){
+        if (myScanCallback == null) {
+            throw new IllegalArgumentException("this MyScanCallback is Null!");
+        }
+        myScanCallback.setViseBluetooth(this).setScan(true).setScanTimeout(scanTimeout).scan();
+    }
+
     /**
      * 开始扫描
      * @param filters 过滤条件
@@ -538,6 +548,48 @@ public class ViseBluetooth {
     }
 
     /**
+     * 与设备配对 参考源码：platform/packages/apps/Settings.git
+     * /Settings/src/com/android/settings/bluetooth/CachedBluetoothDevice.java
+     */
+    public boolean createBond(Class<? extends BluetoothDevice> btClass, BluetoothDevice btDevice) {
+
+        Method createBondMethod = null;
+        Boolean returnValue = null;
+        try {
+            createBondMethod = btClass.getMethod("createBond");
+            returnValue = (Boolean) createBondMethod.invoke(btDevice);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        state = State.CONNECT_PROCESS;
+        return returnValue.booleanValue();
+    }
+
+    /**
+     * 与设备解除配对 参考源码：platform/packages/apps/Settings.git
+     * /Settings/src/com/android/settings/bluetooth/CachedBluetoothDevice.java
+     */
+    public boolean removeBond(Class<? extends BluetoothDevice> btClass, BluetoothDevice btDevice) {
+        Method removeBondMethod = null;
+        Boolean returnValue = null;
+        try {
+            removeBondMethod = btClass.getMethod("removeBond");
+             returnValue = (Boolean) removeBondMethod.invoke(btDevice);
+        } catch (NoSuchMethodException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        return returnValue.booleanValue();
+    }
+
+    /**
      * 连接设备
      * @param bluetoothLeDevice 自定义设备信息
      * @param autoConnect 是否自动连接
@@ -549,6 +601,7 @@ public class ViseBluetooth {
         }
         connect(bluetoothLeDevice.getDevice(), autoConnect, connectCallback);
     }
+
 
     /**
      * 连接指定名称的设备
@@ -794,6 +847,31 @@ public class ViseBluetooth {
         }
         ViseLog.i(characteristic.getUuid() + " characteristic write bytes: " + Arrays.toString(data) + " ,hex: " + HexUtil.encodeHexStr
                 (data));
+        listenAndTimer(bleCallback, MSG_WRITE_CHA);
+        characteristic.setValue(data);
+        return handleAfterInitialed(getBluetoothGatt().writeCharacteristic(characteristic), bleCallback);
+    }
+
+    /**
+     * 写入特征值数据
+     * @param characteristic 特征值
+     * @param data 待发送的数据
+     * @param bleCallback 发送回调
+     * @return 返回写入是否成功的状态
+     */
+    public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic, String data, final ICharacteristicCallback bleCallback) {
+        if (characteristic == null) {
+            if (bleCallback != null) {
+                runOnMainThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        bleCallback.onFailure(new OtherException("this characteristic is null!"));
+                        removeBleCallback(bleCallback);
+                    }
+                });
+            }
+            return false;
+        }
         listenAndTimer(bleCallback, MSG_WRITE_CHA);
         characteristic.setValue(data);
         return handleAfterInitialed(getBluetoothGatt().writeCharacteristic(characteristic), bleCallback);

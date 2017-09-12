@@ -1,10 +1,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.vise.baseble">
 
+    <!--&lt;!&ndash; 蓝牙权限 &ndash;&gt;-->
+    <!--<uses-permission android:name="android.permission.BLUETOOTH" />-->
+    <!--<uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>-->
+    <!--<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />-->
+
+    <!--&lt;!&ndash; 需要硬件支持低功耗蓝牙 &ndash;&gt;-->
+    <!--<uses-feature-->
+    <!--android:name="android.hardware.bluetooth_le"-->
+    <!--android:required="true"/>-->
+    <!--&lt;!&ndash; Android 6.0以上蓝牙还需要位置权限 &ndash;&gt;-->
+    <!--<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>-->
+    <!--<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>-->
+
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
     <application
         android:allowBackup="true"
         android:supportsRtl="true">

@@ -33,7 +33,7 @@ public abstract class PeriodNameScanCallback extends PeriodScanCallback {
                     viseBluetooth.stopLeScan(PeriodNameScanCallback.this);
                     viseBluetooth.setState(State.SCAN_SUCCESS);
                 }
-                onDeviceFound(new BluetoothLeDevice(device, rssi, scanRecord, System.currentTimeMillis()));
+                onDeviceFound(new BluetoothLeDevice(device, rssi, scanRecord, System.currentTimeMillis(), false));
             }
         }
     }

@@ -13,6 +13,7 @@ import android.widget.TextView;
 import com.vise.baseble.common.BluetoothServiceType;
 import com.vise.baseble.model.BluetoothLeDevice;
 import com.vise.baseble.model.adrecord.AdRecord;
+import com.vise.baseble.model.adrecord.AdRecordStore;
 import com.vise.baseble.utils.AdRecordUtil;
 import com.vise.baseble.utils.HexUtil;
 import com.vise.ble.adapter.MergeAdapter;
@@ -208,13 +209,16 @@ public class DeviceDetailActivity extends AppCompatActivity {
             appendHeader(adapter, getString(R.string.header_scan_record));
             appendSimpleText(adapter, device.getScanRecord());
 
-            final Collection<AdRecord> adRecords = device.getAdRecordStore().getRecordsAsCollection();
-            if (adRecords.size() > 0) {
-                appendHeader(adapter, getString(R.string.header_raw_ad_records));
+            AdRecordStore AdRecordStore = device.getAdRecordStore();
+            if(AdRecordStore != null) {
+                final Collection<AdRecord> adRecords = AdRecordStore.getRecordsAsCollection();
+                if (adRecords.size() > 0) {
+                    appendHeader(adapter, getString(R.string.header_raw_ad_records));
 
-                for (final AdRecord record : adRecords) {
+                    for (final AdRecord record : adRecords) {
 
-                    appendAdRecordView(adapter, "#" + record.getType() + " " + record.getHumanReadableType(), record);
+                        appendAdRecordView(adapter, "#" + record.getType() + " " + record.getHumanReadableType(), record);
+                    }
                 }
             }
         }

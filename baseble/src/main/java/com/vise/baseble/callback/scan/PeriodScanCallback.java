@@ -87,7 +87,7 @@ public abstract class PeriodScanCallback implements LeScanCallback {
 
     @Override
     public void onLeScan(BluetoothDevice bluetoothDevice, int rssi, byte[] scanRecord) {
-        onDeviceFound(new BluetoothLeDevice(bluetoothDevice, rssi, scanRecord, System.currentTimeMillis()));
+        onDeviceFound(new BluetoothLeDevice(bluetoothDevice, rssi, scanRecord, System.currentTimeMillis(), false));
     }
 
     public abstract void scanTimeout();

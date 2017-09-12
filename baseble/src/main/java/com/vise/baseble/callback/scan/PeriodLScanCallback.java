@@ -113,7 +113,7 @@ public abstract class PeriodLScanCallback extends ScanCallback {
             return;
         }
         onDeviceFound(new BluetoothLeDevice(result.getDevice(), result.getRssi(), result.getScanRecord().getBytes(), System
-                .currentTimeMillis()));
+                .currentTimeMillis(), false));
     }
 
     public abstract void scanTimeout();

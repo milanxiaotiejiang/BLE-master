@@ -1,14 +1,22 @@
 package com.vise.ble;
 
 import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -29,6 +37,10 @@ import com.vise.baseble.model.resolver.GattAttributeResolver;
 import com.vise.baseble.utils.HexUtil;
 import com.vise.log.ViseLog;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -40,6 +52,10 @@ import java.util.Queue;
  * 设备数据操作相关展示界面
  */
 public class DeviceControlActivity extends AppCompatActivity {
+
+    private BluetoothSocket mBluetoothSocket;
+    private InputStream mInputStream;
+    private OutputStream mOutputStream;
 
     private static final String LIST_NAME = "NAME";
     private static final String LIST_UUID = "UUID";
@@ -64,7 +80,8 @@ public class DeviceControlActivity extends AppCompatActivity {
 
     //发送队列，提供一种简单的处理方式，实际项目场景需要根据需求优化
     private Queue<byte[]> dataInfoQueue = new LinkedList<>();
-    private Handler handler = new Handler(){
+    private Handler mHandler = new Handler();
+    private Handler handler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
             super.handleMessage(msg);
@@ -109,6 +126,7 @@ public class DeviceControlActivity extends AppCompatActivity {
 
     /**
      * 数据分包
+     *
      * @param data
      * @return
      */
@@ -192,6 +210,61 @@ public class DeviceControlActivity extends AppCompatActivity {
         }
     };
 
+    private BroadcastReceiver paringReceived = new BroadcastReceiver() {
+
+        @Override
+        public void onReceive(Context context, Intent intent) {
+//            BluetoothDevice btDevice = ViseBluetooth.getInstance().getBluetoothAdapter().getRemoteDevice(blueAddress);
+
+            try {
+//                boolean ret = ClsUtils.setPin(btDevice.getClass(), btDevice, "1234");
+//                ClsUtils.setPin(btDevice.getClass(), btDevice, "000000");
+//                ClsUtils.cancelPairingUserInput(btDevice.getClass(), btDevice);
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    };
+
+    private BroadcastReceiver searchDevices = new BroadcastReceiver() {
+
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            Bundle b = intent.getExtras();
+            Object[] lstName = b.keySet().toArray();
+
+            // 显示所有收到的消息及其细节
+            for (int i = 0; i < lstName.length; i++) {
+                String keyName = lstName[i].toString();
+                ViseLog.e("bluetooth", keyName + ">>>" + String.valueOf(b.get(keyName)));
+            }
+            final BluetoothDevice device;
+            if (BluetoothDevice.ACTION_BOND_STATE_CHANGED.equals(action)) {
+                device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                switch (device.getBondState()) {
+                    case BluetoothDevice.BOND_BONDING://正在配对
+                        ViseLog.d("BlueToothTestActivity", "正在配对......");
+                        break;
+                    case BluetoothDevice.BOND_BONDED://配对结束
+                        ViseLog.d("BlueToothTestActivity", "完成配对");
+                        Toast.makeText(DeviceControlActivity.this, "完成配对!", Toast.LENGTH_SHORT).show();
+                        ViseBluetooth.getInstance().setState(State.CONNECT_SUCCESS);
+                        mDevice.setPair(true);
+
+                        break;
+                    case BluetoothDevice.BOND_NONE://取消配对/未配对
+                        ViseLog.d("BlueToothTestActivity", "取消配对");
+                        Toast.makeText(DeviceControlActivity.this, "取消配对!", Toast.LENGTH_SHORT).show();
+                        ViseBluetooth.getInstance().setState(State.CONNECT_FAILURE);
+                        mDevice.setPair(false);
+                    default:
+                        break;
+                }
+            }
+        }
+    };
+
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -249,12 +322,72 @@ public class DeviceControlActivity extends AppCompatActivity {
                 send(HexUtil.decodeHex(mInput.getText().toString().toCharArray()));
             }
         });
+        findViewById(R.id.send_notification).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                sendByBle(mInput.getText().toString());
+                new SendInfoTask(mBluetoothSocket, mOutputStream).execute("5");
+            }
+        });
+        findViewById(R.id.btn_connect).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                connect(mDevice.getDevice());
+            }
+        });
+    }
+
+    private void sendByBle(String send_et) {
+        if (TextUtils.isEmpty(send_et))
+            return;
+
+        byte[] buff = send_et.getBytes();
+        int len = buff.length;
+        int[] lens = dataSeparate(len);
+        if (lens[1] != 0) {
+            String str = new String(buff, 20 * lens[0], lens[1]);
+            ViseBluetooth.getInstance().writeCharacteristic(mCharacteristic, str, new ICharacteristicCallback() {
+                @Override
+                public void onSuccess(BluetoothGattCharacteristic characteristic) {
+                    ViseLog.i("Send onSuccess!");
+                }
+
+                @Override
+                public void onFailure(BleException exception) {
+                    ViseLog.i("Send onFail!");
+                }
+            });
+        }
+    }
+
+    public int[] dataSeparate(int len) {
+        int[] lens = new int[2];
+        lens[0] = len / 20;
+        lens[1] = len - 20 * lens[0];
+        return lens;
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        ViseBluetooth.getInstance().connect(mDevice, false, connectCallback);
+
+//        ViseBluetooth.getInstance().connect(mDevice, false, connectCallback);
+        register();
+
+    }
+
+    private void register() {
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothDevice.ACTION_PAIRING_REQUEST);
+        filter.setPriority(Integer.MAX_VALUE);
+//        registerReceiver(paringReceived, filter);
+
+        IntentFilter intent = new IntentFilter();
+        intent.addAction(BluetoothDevice.ACTION_FOUND);//搜索发现设备
+        intent.addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED);//状态改变
+        intent.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);//行动扫描模式改变了
+        intent.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);//动作状态发生了变化
+        registerReceiver(searchDevices, intent);
     }
 
     @Override
@@ -267,6 +400,8 @@ public class DeviceControlActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         ViseBluetooth.getInstance().clear();
+//        unregisterReceiver(paringReceived);
+        unregisterReceiver(searchDevices);
     }
 
     @Override
@@ -293,7 +428,17 @@ public class DeviceControlActivity extends AppCompatActivity {
             case R.id.menu_connect://连接设备
                 invalidateOptionsMenu();
                 if (!ViseBluetooth.getInstance().isConnected()) {
-                    ViseBluetooth.getInstance().connect(mDevice, false, connectCallback);
+//                    ViseBluetooth.getInstance().connect(mDevice, false, connectCallback);
+                    int rssi = mDevice.getFirstRssi();
+                    if (rssi > 0) {
+                        if(mDevice.isPair()){
+                            ViseBluetooth.getInstance().removeBond(mDevice.getDevice().getClass(), mDevice.getDevice());
+                        }else{
+                            ViseBluetooth.getInstance().createBond(mDevice.getDevice().getClass(), mDevice.getDevice());
+                        }
+                    } else {
+                        ViseBluetooth.getInstance().connect(mDevice, false, connectCallback);
+                    }
                 }
                 break;
             case R.id.menu_disconnect://断开设备
@@ -306,8 +451,69 @@ public class DeviceControlActivity extends AppCompatActivity {
         return true;
     }
 
+    private void connect(final BluetoothDevice device) {
+        new Thread(new Runnable() {
+
+            @Override
+            public void run() {
+                ViseBluetooth.getInstance().getBluetoothAdapter().cancelDiscovery();
+
+                BluetoothDevice bluetoothDevice = ViseBluetooth.getInstance().getBluetoothAdapter().getRemoteDevice(device.getAddress());
+                try {
+                    //通过和服务器协商的uuid来进行连接     0000ffe1-0000-1000-8000-00805f9b34fb
+//                    mBluetoothSocket = bluetoothDevice.createRfcommSocketToServiceRecord(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"));
+                    mBluetoothSocket =(BluetoothSocket) bluetoothDevice.getClass().getMethod("createRfcommSocket", new Class[] {int.class}).invoke(device, 1);
+
+                    //通过反射得到bltSocket对象，与uuid进行连接得到的结果一样，但这里不提倡用反射的方法
+//            mBluetoothSocket = (BluetoothSocket) device.getClass().getMethod("createRfcommSocket", new Class[]{int.class}).invoke(device, 1);
+
+                    if (mBluetoothSocket != null)
+                        mBluetoothSocket.connect();
+                    if (mBluetoothSocket != null) {
+                        mInputStream = mBluetoothSocket.getInputStream();
+                        mOutputStream = mBluetoothSocket.getOutputStream();
+
+                    }
+
+                } catch (IOException e) {
+
+                    try {
+
+//                        mBluetoothSocket =(BluetoothSocket) bluetoothDevice.getClass().getMethod("createRfcommSocket", new Class[] {int.class}).invoke(device,1);
+//                        mBluetoothSocket.connect();
+
+                    }
+                    catch (Exception e2) {
+                        e2.printStackTrace();
+                    }
+
+
+                    try {
+                        if (mInputStream != null)
+                            mInputStream.close();
+                        if (mBluetoothSocket != null) {
+                            mBluetoothSocket.close();
+                            mBluetoothSocket = null;
+                        }
+                    } catch (Exception e2) {
+                        // TODO: handle exception
+                    }
+                    e.printStackTrace();
+                } catch (NoSuchMethodException e) {
+                    e.printStackTrace();
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (InvocationTargetException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+    }
+
+
     /**
      * 根据GATT服务显示该服务下的所有特征值
+     *
      * @param gattServices GATT服务
      * @return
      */
@@ -329,6 +535,7 @@ public class DeviceControlActivity extends AppCompatActivity {
             gattServiceData.add(currentServiceData);
 
             final List<Map<String, String>> gattCharacteristicGroupData = new ArrayList<>();
+            // 从当前循环所指向的服务中读取特征值列表
             final List<BluetoothGattCharacteristic> gattCharacteristics = gattService.getCharacteristics();
             final List<BluetoothGattCharacteristic> charas = new ArrayList<>();
 
@@ -393,9 +600,11 @@ public class DeviceControlActivity extends AppCompatActivity {
                 final BluetoothGattCharacteristic characteristic = mGattCharacteristics.get(groupPosition).get(childPosition);
                 final int charaProp = characteristic.getProperties();
                 if ((charaProp & BluetoothGattCharacteristic.PROPERTY_WRITE) > 0) {
+
                     mCharacteristic = characteristic;
                     ((EditText) findViewById(R.id.show_write_characteristic)).setText(characteristic.getUuid().toString());
                 } else if ((charaProp & BluetoothGattCharacteristic.PROPERTY_READ) > 0) {
+
                     ViseBluetooth.getInstance().readCharacteristic(characteristic, new ICharacteristicCallback() {
                         @Override
                         public void onSuccess(final BluetoothGattCharacteristic characteristic) {
@@ -419,6 +628,16 @@ public class DeviceControlActivity extends AppCompatActivity {
                             ViseLog.i("readCharacteristic onFailure:" + exception.getDescription());
                         }
                     });
+
+//                    if (characteristic.getUuid().toString().equals("0000ffe1-0000-1000-8000-00805f9b34fb")) {
+//                        ViseBluetooth.getInstance().getBluetoothGatt().setCharacteristicNotification(characteristic, true);
+//                        BluetoothGattDescriptor clientConfig = characteristic.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"));
+//                        clientConfig.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+//                        ViseBluetooth.getInstance().getBluetoothGatt().writeDescriptor(clientConfig);
+//
+//                    }
+                    mCharacteristic = characteristic;
+
                 }
                 if ((charaProp & BluetoothGattCharacteristic.PROPERTY_NOTIFY) > 0) {
                     ((EditText) findViewById(R.id.show_notify_characteristic)).setText(characteristic.getUuid().toString());

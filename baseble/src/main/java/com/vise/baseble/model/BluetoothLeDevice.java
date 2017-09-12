@@ -47,8 +47,9 @@ public class BluetoothLeDevice implements Parcelable {
     private static final String PARCEL_EXTRA_DEVICE_SCANRECORD_STORE = "device_scanrecord_store";
     private static final String PARCEL_EXTRA_FIRST_RSSI = "device_first_rssi";
     private static final String PARCEL_EXTRA_FIRST_TIMESTAMP = "first_timestamp";
+    private static final String PARCEL_EXTRA_IS_PAIR = "is_pair";
     private static final long LOG_INVALIDATION_THRESHOLD = 10 * 1000;
-    private final AdRecordStore mRecordStore;
+    private AdRecordStore mRecordStore;
     private final BluetoothDevice mDevice;
     private final Map<Long, Integer> mRssiLog;
     private final byte[] mScanRecord;
@@ -57,6 +58,7 @@ public class BluetoothLeDevice implements Parcelable {
     private int mCurrentRssi;
     private long mCurrentTimestamp;
     private transient Set<BluetoothServiceType> mServiceSet;
+    private boolean isPair;
 
     /**
      * Instantiates a new Bluetooth LE device.
@@ -66,14 +68,25 @@ public class BluetoothLeDevice implements Parcelable {
      * @param scanRecord the scan record of the device
      * @param timestamp  the timestamp of the RSSI reading
      */
-    public BluetoothLeDevice(final BluetoothDevice device, final int rssi, final byte[] scanRecord, final long timestamp) {
+    public BluetoothLeDevice(final BluetoothDevice device, final int rssi, final byte[] scanRecord, final long timestamp, boolean isPair) {
         mDevice = device;
         mFirstRssi = rssi;
         mFirstTimestamp = timestamp;
-        mRecordStore = new AdRecordStore(AdRecordUtil.parseScanRecordAsSparseArray(scanRecord));
+        if(scanRecord != null) {
+            mRecordStore = new AdRecordStore(AdRecordUtil.parseScanRecordAsSparseArray(scanRecord));
+        }
         mScanRecord = scanRecord;
         mRssiLog = new LinkedHashMap<>(MAX_RSSI_LOG_SIZE);
         updateRssiReading(timestamp, rssi);
+        this.isPair = isPair;
+    }
+
+    public boolean isPair() {
+        return isPair;
+    }
+
+    public void setPair(boolean pair) {
+        isPair = pair;
     }
 
     /**
@@ -108,6 +121,7 @@ public class BluetoothLeDevice implements Parcelable {
         mRecordStore = b.getParcelable(PARCEL_EXTRA_DEVICE_SCANRECORD_STORE);
         mRssiLog = (Map<Long, Integer>) b.getSerializable(PARCEL_EXTRA_DEVICE_RSSI_LOG);
         mScanRecord = b.getByteArray(PARCEL_EXTRA_DEVICE_SCANRECORD);
+        isPair = b.getBoolean(PARCEL_EXTRA_IS_PAIR);
     }
 
     /**
@@ -243,6 +257,7 @@ public class BluetoothLeDevice implements Parcelable {
     public int getFirstRssi() {
         return mFirstRssi;
     }
+
 
     /**
      * Gets the first timestamp.
@@ -383,6 +398,7 @@ public class BluetoothLeDevice implements Parcelable {
         b.putParcelable(PARCEL_EXTRA_BLUETOOTH_DEVICE, mDevice);
         b.putParcelable(PARCEL_EXTRA_DEVICE_SCANRECORD_STORE, mRecordStore);
         b.putSerializable(PARCEL_EXTRA_DEVICE_RSSI_LOG, (Serializable) mRssiLog);
+        b.putBoolean(PARCEL_EXTRA_IS_PAIR, isPair);
 
         parcel.writeBundle(b);
     }

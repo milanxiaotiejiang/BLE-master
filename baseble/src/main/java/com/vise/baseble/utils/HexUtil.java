@@ -62,7 +62,11 @@ public class HexUtil {
      * @return 十六进制String
      */
     public static String encodeHexStr(byte[] data) {
-        return encodeHexStr(data, true);
+        if(data != null) {
+            return encodeHexStr(data, true);
+        }else{
+            return "";
+        }
     }
 
     /**
