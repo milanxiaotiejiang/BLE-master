@@ -2,8 +2,10 @@ package com.vise.ble;
 
 import android.bluetooth.BluetoothSocket;
 import android.os.AsyncTask;
-import android.util.Log;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 
@@ -15,11 +17,9 @@ public class SendInfoTask extends AsyncTask<String, String, String> {
 
 
     private BluetoothSocket mBluetoothSocket;
-    private OutputStream outputStream;
 
-    public SendInfoTask(BluetoothSocket mBluetoothSocket, OutputStream outputStream) {
+    public SendInfoTask(BluetoothSocket mBluetoothSocket) {
         this.mBluetoothSocket = mBluetoothSocket;
-        this.outputStream = outputStream;
     }
 
     @Override
@@ -38,14 +38,41 @@ public class SendInfoTask extends AsyncTask<String, String, String> {
 
         if (arg0[0].length() > 0) {
 
-            byte[] msgBuffer = arg0[0].getBytes();
-            try {
-                //  将msgBuffer中的数据写到outStream对象中
-                outputStream.write(msgBuffer);
-            } catch (IOException e) {
-                Log.e("error", "ON RESUME: Exception during write.", e);
-                return "发送失败";
+            String path = arg0[0];
+
+            File file = new File(path);
+            if(!file.exists()){
+                return null;
             }
+
+            try {
+                OutputStream outputStream = mBluetoothSocket.getOutputStream();
+
+                FileInputStream fileInputStream = new FileInputStream(file);
+
+                byte[] buffer = new byte[1024];
+                int len = 0;
+                while((len=fileInputStream.read(buffer))!=-1){
+                    outputStream.write(buffer, 0, len);
+                }
+
+                outputStream.close();
+                fileInputStream.close();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+
+//            byte[] msgBuffer = arg0[0].getBytes();
+//            try {
+//                //  将msgBuffer中的数据写到outStream对象中
+//                outputStream.write(msgBuffer);
+//            } catch (IOException e) {
+//                Log.e("error", "ON RESUME: Exception during write.", e);
+//                return "发送失败";
+//            }
         }
 
         return "发送成功";

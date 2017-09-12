@@ -1,5 +1,6 @@
 package com.vise.ble;
 
+import android.Manifest;
 import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
@@ -11,10 +12,16 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -52,6 +59,8 @@ import java.util.Queue;
  * 设备数据操作相关展示界面
  */
 public class DeviceControlActivity extends AppCompatActivity {
+
+    private static final int MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE = 101;
 
     private BluetoothSocket mBluetoothSocket;
     private InputStream mInputStream;
@@ -325,8 +334,8 @@ public class DeviceControlActivity extends AppCompatActivity {
         findViewById(R.id.send_notification).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                sendByBle(mInput.getText().toString());
-                new SendInfoTask(mBluetoothSocket, mOutputStream).execute("5");
+//                sendByBle(mInput.getText().toString());
+                    checkBluetoothPermission();
             }
         });
         findViewById(R.id.btn_connect).setOnClickListener(new View.OnClickListener() {
@@ -335,6 +344,27 @@ public class DeviceControlActivity extends AppCompatActivity {
                 connect(mDevice.getDevice());
             }
         });
+    }
+
+    private void checkBluetoothPermission(){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            //校验是否已具有模糊定位权限
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                        MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE);
+            } else {
+                //具有权限
+                sendFile();
+            }
+        } else {
+            //系统不高于6.0直接执行
+            sendFile();
+        }
+    }
+
+    private void sendFile(){
+        String path = Environment.getExternalStorageDirectory().getAbsolutePath() + "/news_article/juanfu.jpg";
+        new SendInfoTask(mBluetoothSocket).execute(path);
     }
 
     private void sendByBle(String send_et) {
@@ -462,7 +492,7 @@ public class DeviceControlActivity extends AppCompatActivity {
                 try {
                     //通过和服务器协商的uuid来进行连接     0000ffe1-0000-1000-8000-00805f9b34fb
 //                    mBluetoothSocket = bluetoothDevice.createRfcommSocketToServiceRecord(UUID.fromString("0000ffe1-0000-1000-8000-00805f9b34fb"));
-                    mBluetoothSocket =(BluetoothSocket) bluetoothDevice.getClass().getMethod("createRfcommSocket", new Class[] {int.class}).invoke(device, 1);
+                    mBluetoothSocket =(BluetoothSocket) bluetoothDevice.getClass().getMethod("createRfcommSocket", new Class[] {int.class}).invoke(device, 2);
 
                     //通过反射得到bltSocket对象，与uuid进行连接得到的结果一样，但这里不提倡用反射的方法
 //            mBluetoothSocket = (BluetoothSocket) device.getClass().getMethod("createRfcommSocket", new Class[]{int.class}).invoke(device, 1);
@@ -668,4 +698,17 @@ public class DeviceControlActivity extends AppCompatActivity {
         return true;
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == MY_PERMISSIONS_REQUEST_WRITE_EXTERNAL_STORAGE) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                //同意权限
+                sendFile();
+            } else {
+                // 权限拒绝，提示用户开启权限
+                finish();
+            }
+        }
+    }
 }
